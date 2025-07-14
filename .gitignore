@@ -31,12 +31,18 @@ ENV/
 *.swp
 *.swo
 
-# Project specific
-models/*.pth
+# Project specific - Large files and cache
 dataset_cache/
+trash_classifier_env/
+
+# Keep important result images but exclude temporary ones
+training_progress_epoch*.png
+
+# Model files (too large for git)
+models/*.pth
+
+# Temporary files
 *.npy
-*.png
-training_data_summary.txt
 
 # Logs
 *.log
