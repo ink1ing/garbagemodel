@@ -217,27 +217,89 @@ class RealTimeTrashClassifier:
     def start_camera(self, camera_id=0):
         """启动摄像头"""
         try:
-            self.cap = cv2.VideoCapture(camera_id)
+            # 先释放之前的摄像头实例
+            if hasattr(self, 'cap') and self.cap is not None:
+                self.cap.release()
+                time.sleep(0.5)
             
-            if not self.cap.isOpened():
-                raise RuntimeError(f"无法打开摄像头 {camera_id}")
+            # 在macOS上尝试不同的后端
+            backends_to_try = [
+                cv2.CAP_AVFOUNDATION,  # macOS原生后端
+                cv2.CAP_ANY,           # 自动选择
+                0                      # 默认后端
+            ]
             
-            # 设置摄像头参数
-            self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-            self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-            self.cap.set(cv2.CAP_PROP_FPS, 30)
+            for backend in backends_to_try:
+                try:
+                    print(f"尝试使用后端: {backend}")
+                    if backend == 0:
+                        self.cap = cv2.VideoCapture(camera_id)
+                    else:
+                        self.cap = cv2.VideoCapture(camera_id, backend)
+                    
+                    if self.cap.isOpened():
+                        print(f"✅ 后端 {backend} 成功打开摄像头")
+                        break
+                    else:
+                        print(f"❌ 后端 {backend} 无法打开摄像头")
+                        if self.cap is not None:
+                            self.cap.release()
+                        self.cap = None
+                except Exception as e:
+                    print(f"❌ 后端 {backend} 出现异常: {e}")
+                    if self.cap is not None:
+                        self.cap.release()
+                    self.cap = None
+            
+            if self.cap is None or not self.cap.isOpened():
+                raise RuntimeError(f"无法打开摄像头 {camera_id}，尝试了所有后端")
+            
+            # 设置摄像头参数 - 1080p 60fps 高质量
+            try:
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+                self.cap.set(cv2.CAP_PROP_FPS, 60)  # 60帧
+                self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
+                
+                # 验证设置
+                actual_width = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+                actual_height = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+                actual_fps = self.cap.get(cv2.CAP_PROP_FPS)
+                
+                print(f"📷 摄像头参数: {actual_width}x{actual_height} @ {actual_fps}fps (1080p 60fps)")
+                
+            except Exception as e:
+                print(f"⚠️ 设置摄像头参数时出现警告: {e}")
+            
+            # 测试读取几帧
+            for i in range(3):
+                ret, frame = self.cap.read()
+                if ret and frame is not None:
+                    print(f"✅ 成功读取测试帧 {i+1}")
+                    break
+                else:
+                    print(f"❌ 测试帧 {i+1} 读取失败")
+                    time.sleep(0.1)
+            else:
+                raise RuntimeError("无法读取摄像头画面")
             
             self.is_running = True
             
             # 启动预测线程
-            self.prediction_thread = threading.Thread(target=self.prediction_worker, daemon=True)
-            self.prediction_thread.start()
+            if hasattr(self, 'prediction_thread') and self.prediction_thread.is_alive():
+                pass  # 线程已在运行
+            else:
+                self.prediction_thread = threading.Thread(target=self.prediction_worker, daemon=True)
+                self.prediction_thread.start()
             
             print("✅ 摄像头启动成功")
             return True
             
         except Exception as e:
             print(f"❌ 摄像头启动失败: {e}")
+            if hasattr(self, 'cap') and self.cap is not None:
+                self.cap.release()
+                self.cap = None
             return False
     
     def stop_camera(self):
@@ -298,19 +360,6 @@ class RealTimeTrashClassifier:
         bar_width = int(300 * confidence)
         cv2.rectangle(frame, (20, 105), (320, 115), (100, 100, 100), 1)
         cv2.rectangle(frame, (20, 105), (20 + bar_width, 115), color, -1)
-        
-        # 绘制其他类别的置信度（前3个）
-        y_offset = 140
-        sorted_confidences = sorted(prediction['all_confidences'].items(), 
-                                  key=lambda x: x[1], reverse=True)
-        
-        for i, (cls, conf) in enumerate(sorted_confidences[:3]):
-            if cls != eng_class:  # 跳过主要预测类别
-                cls_info_other = CLASS_MAPPING.get(cls, {'chinese': cls, 'icon': '❓'})
-                other_text = f"{cls_info_other['icon']} {cls_info_other['chinese']}: {conf:.1%}"
-                cv2.putText(frame, other_text, (20, y_offset), 
-                           cv2.FONT_HERSHEY_SIMPLEX, 0.4, (200, 200, 200), 1)
-                y_offset += 20
         
         return frame
     

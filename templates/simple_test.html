@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>垃圾分类测试页面</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #0d1117;
+            color: #c9d1d9;
+        }
+        .container {
+            background: #161b22;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid #30363d;
+        }
+        .video-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        #video-stream {
+            max-width: 100%;
+            border-radius: 12px;
+            border: 1px solid #30363d;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 0 10px;
+            font-weight: 500;
+        }
+        button:hover {
+            background: #2ea043;
+        }
+        .status {
+            text-align: center;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 6px;
+        }
+        .status.success { background: #1a7f37; color: #ffffff; }
+        .status.error { background: #da3633; color: #ffffff; }
+        .status.warning { background: #fb8500; color: #ffffff; }
+        .prediction {
+            margin: 20px 0;
+            padding: 15px;
+            background: #21262d;
+            border-radius: 6px;
+            border-left: 4px solid #58a6ff;
+            color: #c9d1d9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 垃圾分类识别测试</h1>
+        
+        <div class="status" id="status">准备就绪</div>
+        
+        <div class="video-container">
+            <img id="video-stream" src="/video_feed" alt="视频流" style="display: none;">
+            <div id="loading" style="display: block;">
+                <p>📷 点击开始识别按钮启动摄像头</p>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <button onclick="startStream()">开始识别</button>
+            <button onclick="stopStream()">停止识别</button>
+        </div>
+        
+        <div id="prediction" class="prediction" style="display: none;">
+            <h3>🎯 识别结果</h3>
+            <div id="prediction-content">等待识别结果...</div>
+        </div>
+    </div>
+
+    <script>
+        let isStreaming = false;
+        let predictionInterval;
+
+        function updateStatus(message, type = 'success') {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+        }
+
+        function startStream() {
+            if (isStreaming) return;
+            
+            updateStatus('正在启动摄像头...', 'warning');
+            
+            fetch('/start_stream')
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Start response:', data);
+                    if (data.success) {
+                        isStreaming = true;
+                        document.getElementById('loading').style.display = 'none';
+                        document.getElementById('video-stream').style.display = 'block';
+                        document.getElementById('prediction').style.display = 'block';
+                        
+                        updateStatus('摄像头运行中 - 正在识别...', 'success');
+                        
+                        // 开始获取预测结果
+                        predictionInterval = setInterval(fetchPrediction, 2000);
+                    } else {
+                        updateStatus('启动失败: ' + data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    updateStatus('网络错误: ' + error.message, 'error');
+                });
+        }
+
+        function stopStream() {
+            if (!isStreaming) return;
+            
+            fetch('/stop_stream')
+                .then(response => response.json())
+                .then(data => {
+                    isStreaming = false;
+                    document.getElementById('video-stream').style.display = 'none';
+                    document.getElementById('loading').style.display = 'block';
+                    document.getElementById('prediction').style.display = 'none';
+                    
+                    if (predictionInterval) {
+                        clearInterval(predictionInterval);
+                    }
+                    
+                    updateStatus('摄像头已停止', 'warning');
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    updateStatus('停止时出现错误', 'error');
+                });
+        }
+
+        function fetchPrediction() {
+            if (!isStreaming) return;
+            
+            fetch('/get_prediction')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.prediction) {
+                        showPrediction(data.prediction);
+                    } else {
+                        document.getElementById('prediction-content').innerHTML = '<p>暂无识别结果</p>';
+                    }
+                })
+                .catch(error => {
+                    console.error('Prediction error:', error);
+                });
+        }
+
+        function showPrediction(prediction) {
+            const content = document.getElementById('prediction-content');
+            const confidence = Math.round(prediction.confidence * 100);
+            
+            content.innerHTML = `
+                <div style="font-size: 18px; margin-bottom: 10px;">
+                    ${prediction.icon} <strong>${prediction.chinese_class}</strong>
+                </div>
+                <div style="margin-bottom: 10px;">
+                    置信度: <strong>${confidence}%</strong>
+                </div>
+                <div style="font-size: 14px; color: #666;">
+                    English: ${prediction.english_class}
+                </div>
+            `;
+        }
+
+        // 页面加载时检查视频流
+        window.addEventListener('load', function() {
+            updateStatus('页面已加载，点击开始识别', 'warning');
+        });
+    </script>
+</body>
+</html>

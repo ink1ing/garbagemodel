@@ -32,48 +32,87 @@ def generate_frames():
     """生成视频流帧"""
     global classifier, is_streaming
     
-    if classifier is None or not classifier.start_camera():
+    if classifier is None:
+        print("错误: 分类器未初始化")
         return
     
-    is_streaming = True
+    # 检查摄像头是否已经启动
+    if not hasattr(classifier, 'cap') or classifier.cap is None or not classifier.cap.isOpened():
+        print("摄像头未启动，等待启动...")
+        # 返回空帧，避免前端卡住
+        dummy_frame = b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + b'\r\n'
+        yield dummy_frame
+        return
+        
     frame_count = 0
     last_prediction_time = 0
     
     try:
         while is_streaming and classifier.is_running:
+            if not classifier.cap or not classifier.cap.isOpened():
+                print("摄像头连接断开")
+                break
+                
             ret, frame = classifier.cap.read()
             if not ret:
-                break
+                print("无法读取摄像头帧")
+                # 短暂等待后继续尝试
+                time.sleep(0.1)
+                continue
             
             frame_count += 1
             current_time = time.time()
             
-            # 每隔几帧进行预测
-            if frame_count % 3 == 0 and current_time - last_prediction_time > 0.3:
-                classifier.async_predict(frame.copy())
-                last_prediction_time = current_time
+            # 减少预测频率但保持高质量视频
+            if frame_count % 15 == 0 and current_time - last_prediction_time > 1.0:
+                try:
+                    classifier.async_predict(frame.copy())
+                    last_prediction_time = current_time
+                except Exception as e:
+                    print(f"预测错误: {e}")
             
-            # 绘制预测结果
-            frame_with_overlay = classifier.draw_prediction_overlay(frame, classifier.current_prediction)
+            # 保持高质量但适度压缩
+            if hasattr(classifier, 'current_prediction') and classifier.current_prediction:
+                frame_with_overlay = classifier.draw_prediction_overlay(frame, classifier.current_prediction)
+            else:
+                frame_with_overlay = frame
             
-            # 编码为JPEG
-            ret, buffer = cv2.imencode('.jpg', frame_with_overlay, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            # 适度降低分辨率用于web显示 (保持16:9比例)
+            height, width = frame_with_overlay.shape[:2]
+            if width > 1280:  # 降到720p用于web显示
+                new_width = 1280
+                new_height = int(height * (new_width / width))
+                frame_with_overlay = cv2.resize(frame_with_overlay, (new_width, new_height))
+            
+            # 编码为JPEG，保持较高质量
+            ret, buffer = cv2.imencode('.jpg', frame_with_overlay, 
+                                     [cv2.IMWRITE_JPEG_QUALITY, 80])
             if ret:
                 frame_bytes = buffer.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            
+            # 控制帧率约30fps以平衡性能和流畅度
+            time.sleep(0.033)
                 
     except Exception as e:
         print(f"视频流错误: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
-        if classifier:
-            classifier.stop_camera()
+        print("视频流结束")
+        is_streaming = False
         is_streaming = False
 
 @app.route('/')
 def index():
     """主页"""
     return render_template('realtime_index.html')
+
+@app.route('/test')
+def test_page():
+    """简化测试页面"""
+    return render_template('simple_test.html')
 
 @app.route('/video_feed')
 def video_feed():
@@ -119,12 +158,45 @@ def get_prediction():
 @app.route('/start_stream')
 def start_stream():
     """开始视频流"""
-    global is_streaming
-    if not is_streaming:
-        is_streaming = True
-        return jsonify({'success': True, 'message': '视频流已启动'})
-    else:
-        return jsonify({'success': False, 'message': '视频流已在运行'})
+    global is_streaming, classifier
+    try:
+        if not is_streaming:
+            # 确保分类器已初始化
+            if classifier is None:
+                if not init_classifier():
+                    return jsonify({'success': False, 'message': '分类器初始化失败'})
+            
+            # 启动摄像头，添加重试机制
+            if classifier:
+                print("正在启动摄像头...")
+                success = False
+                for attempt in range(3):  # 最多尝试3次
+                    try:
+                        success = classifier.start_camera(camera_id=0)
+                        if success:
+                            break
+                        else:
+                            print(f"摄像头启动尝试 {attempt + 1} 失败，重试中...")
+                            time.sleep(1)
+                    except Exception as e:
+                        print(f"摄像头启动异常 {attempt + 1}: {e}")
+                        time.sleep(1)
+                
+                if success:
+                    is_streaming = True
+                    print("✅ 摄像头启动成功，视频流已开始")
+                    return jsonify({'success': True, 'message': '视频流已启动'})
+                else:
+                    return jsonify({'success': False, 'message': '摄像头启动失败，请检查摄像头权限或重试'})
+            else:
+                return jsonify({'success': False, 'message': '分类器初始化失败'})
+        else:
+            return jsonify({'success': True, 'message': '视频流已在运行'})
+    except Exception as e:
+        print(f"启动视频流错误: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': f'启动失败: {str(e)}'})
 
 @app.route('/stop_stream')
 def stop_stream():

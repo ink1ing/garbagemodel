@@ -1,0 +1,43 @@
+{
+  "trash_bins": {
+    "no.1": {
+      "unique_id": "f922d6ee-8ba7-4e13-8595-e478b442a1ab",
+      "created_time": "2025-07-30T20:02:04.502217",
+      "filepath": "qr_codes/active/no.1_qr_1753876924.png",
+      "status": "active"
+    },
+    "no.2": {
+      "unique_id": "c4d65e20-5be6-4ecd-8aaf-82d2c6883e79",
+      "created_time": "2025-07-30T20:02:04.522916",
+      "filepath": "qr_codes/active/no.2_qr_1753876924.png",
+      "status": "active"
+    },
+    "no.3": {
+      "unique_id": "4f2d967c-46d8-4cf3-a1c7-a2492d6d192b",
+      "created_time": "2025-07-30T20:02:04.535402",
+      "filepath": "qr_codes/active/no.3_qr_1753876924.png",
+      "status": "active"
+    },
+    "no.4": {
+      "unique_id": "f3d69802-c904-4f15-b05b-c9026eb01f2b",
+      "created_time": "2025-07-30T20:02:04.547755",
+      "filepath": "qr_codes/active/no.4_qr_1753876924.png",
+      "status": "active"
+    },
+    "no.5": {
+      "unique_id": "38ba338f-0345-4991-a548-d0742f71e2d4",
+      "created_time": "2025-07-30T20:02:04.560065",
+      "filepath": "qr_codes/active/no.5_qr_1753876924.png",
+      "status": "active"
+    }
+  },
+  "total_generated": 5,
+  "last_update": "2025-07-30T20:02:29.760134",
+  "capture_history": [
+    {
+      "bin_id": "no.5",
+      "captured_time": "2025-07-30T20:02:29.760118",
+      "captured_path": "qr_codes/captured/no.5_captured_1753876949.png"
+    }
+  ]
+}

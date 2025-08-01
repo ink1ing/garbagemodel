@@ -1,0 +1,32 @@
+{
+  "trash_bins": {
+    "no.1": {
+      "unique_id": "86c96bb5-b67e-41e4-b5a0-74ed29f27b2c",
+      "created_time": "2025-07-30T20:00:09.565435",
+      "filepath": "test_qr_codes/active/no.1_qr_1753876809.png",
+      "status": "active"
+    },
+    "no.2": {
+      "unique_id": "83980d19-3ce7-4893-9ee6-cdc98fdf0b72",
+      "created_time": "2025-07-30T20:00:09.530471",
+      "filepath": "test_qr_codes/active/no.2_qr_1753876809.png",
+      "status": "active"
+    },
+    "no.3": {
+      "unique_id": "3dd267e5-3754-4da9-a1b5-1a0413f4596d",
+      "created_time": "2025-07-30T20:00:09.548651",
+      "filepath": "test_qr_codes/active/no.3_qr_1753876809.png",
+      "status": "invalid",
+      "invalid_time": "2025-07-30T20:00:09.565202"
+    }
+  },
+  "total_generated": 3,
+  "last_update": "2025-07-30T20:00:09.578819",
+  "capture_history": [
+    {
+      "bin_id": "no.2",
+      "captured_time": "2025-07-30T20:00:09.564808",
+      "captured_path": "test_qr_codes/captured/no.2_captured_1753876809.png"
+    }
+  ]
+}
